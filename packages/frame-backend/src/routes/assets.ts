@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { v4 as uuid } from "uuid";
-import { db } from "../db.js";
+import { store } from "../store.js";
+import { supabase, BUCKET, ensureBucket } from "../supabase.js";
 import {
   MAX_UPLOAD_BYTES,
   SUPPORTED_AUDIO_MIME,
@@ -10,14 +11,16 @@ import {
 } from "@frame/common";
 
 export const assetsRoutes: FastifyPluginAsync = async (app) => {
+  await ensureBucket();
+
   app.get("/projects/:id/assets", async (req) => {
     const projectId = (req.params as { id: string }).id;
-    return [...db.assets.values()].filter((a) => a.projectId === projectId);
+    return store.listAssets(projectId);
   });
 
   app.post("/projects/:id/assets", async (req, reply) => {
     const projectId = (req.params as { id: string }).id;
-    if (!db.projects.has(projectId)) {
+    if (!(await store.getProject(projectId))) {
       return reply.code(404).send({ code: "not_found", message: "Project not found" });
     }
     const data = await req.file();
@@ -40,7 +43,16 @@ export const assetsRoutes: FastifyPluginAsync = async (app) => {
         ? "audio"
         : "image";
 
-    const asset: MediaAsset = {
+    const storageKey = `assets/${projectId}/${uuid()}-${data.filename}`;
+    const buffer = await data.toBuffer();
+    const upload = await supabase.storage
+      .from(BUCKET)
+      .upload(storageKey, buffer, { contentType: data.mimetype, upsert: false });
+    if (upload.error) {
+      return reply.code(500).send({ code: "upload_failed", message: upload.error.message });
+    }
+
+    const asset = await store.createAsset({
       id: uuid(),
       projectId,
       kind,
@@ -50,11 +62,8 @@ export const assetsRoutes: FastifyPluginAsync = async (app) => {
       durationSeconds: 0,
       width: 0,
       height: 0,
-      storageKey: `assets/${projectId}/${uuid()}-${data.filename}`,
-      createdAt: new Date().toISOString(),
-    };
-    db.assets.set(asset.id, asset);
-    // NOTE: stream (data.file) is persisted to object storage in production.
+      storageKey,
+    } as Omit<MediaAsset, "createdAt">);
     return reply.code(201).send(asset);
   });
 };

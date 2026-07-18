@@ -5,20 +5,38 @@ import media, arrange clips on a timeline, and let the Frame Agent plan the cut.
 
 > **Status:** This repository was originally a marketing skeleton (READMEs only).
 > It now contains a runnable MVP: a Next.js web studio + a Fastify backend, with a
-> shared TypeScript contract package. Storage and the render pipeline use in-memory
-> stubs that are marked for replacement with real infra (see "Production gaps").
+> shared TypeScript contract package. The backend persists to **Supabase** (Postgres +
+> Storage) and the render pipeline is a stub (see "Production gaps").
 
 ## Architecture
 
 ```
 packages/
   frame-common/   shared domain types (Project, MediaAsset, Clip, Timeline, RenderJob, ChatMessage)
-  frame-backend/  Fastify API + AI agent (in-memory store; pluggable model provider)
+  frame-backend/  Fastify API + AI agent; persistence via Supabase (Postgres + Storage)
   frame-web/      Next.js (App Router) studio UI: asset import, timeline, agent panel
+supabase/
+  schema.sql      tables (frame_* prefix) for Supabase Postgres
 ```
 
 Data flow: Web UI → `@frame/web/src/lib/api.ts` → Backend REST (`/api/v1/...`)
-→ in-memory store → (render stub) → export.
+→ Supabase (Postgres tables + Storage `frame-media` bucket) → (render stub) → export.
+
+## Storage & database (Supabase)
+
+The backend uses the **Supabase JS client** with the service role key (server-side only).
+Tables are namespaced `frame_*` to avoid collisions with other apps in the same project:
+`frame_projects`, `frame_assets`, `frame_tracks`, `frame_clips`, `frame_render_jobs`,
+`frame_chat_messages`. Uploaded media is streamed to the `frame-media` Storage bucket.
+
+Setup:
+1. `supabase/schema.sql` creates the tables/indexes (run in the Supabase SQL editor).
+2. Create the Storage bucket `frame-media` (private).
+3. Set env (see `packages/frame-backend/.env.example`): `SUPABASE_URL`,
+   `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_BUCKET`.
+
+> The service role key bypasses RLS. Before exposing a browser client, enable RLS and
+> add policies scoped to `auth.uid()`.
 
 ## Prerequisites
 
@@ -50,10 +68,9 @@ pnpm --filter @frame/web run build        # production build of web
 
 ## Production gaps (to reach true production)
 
-1. **Persistence:** swap `frame-backend/src/db.ts` in-memory maps for Postgres + migrations.
-2. **Storage:** stream uploaded files (`assets.ts`) to S3/R2; serve via signed URLs.
-3. **Render pipeline:** replace the render stub with an ffmpeg/cloud-GPU worker + job queue.
-4. **Auth:** add real user auth; replace `ownerId: "system"`.
-5. **AI provider:** set `FRAME_AI_PROVIDER` + `FRAME_AI_API_KEY`; implement `agent/agent.ts`.
-6. **CI/CD:** `.github/workflows/ci.yml` runs typecheck, backend tests, and web build.
-7. **Client video engine:** wire a real player/encoder (e.g. ffmpeg.wasm / remotion) for previews.
+1. **Render pipeline:** replace the render stub with an ffmpeg/cloud-GPU worker + job queue.
+2. **Auth:** add real user auth (Supabase Auth); scope `ownerId` and enable RLS policies.
+3. **AI provider:** set `FRAME_AI_PROVIDER` + `FRAME_AI_API_KEY`; implement `agent/agent.ts`.
+4. **Media metadata:** probe uploads for real duration/width/height (e.g. ffprobe) instead of 0.
+5. **CI/CD:** `.github/workflows/ci.yml` runs typecheck, backend tests, and web build.
+6. **Client video engine:** wire a real player/encoder (e.g. ffmpeg.wasm / remotion) for previews.

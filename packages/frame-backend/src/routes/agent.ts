@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { v4 as uuid } from "uuid";
-import { db } from "../db.js";
+import { store } from "../store.js";
 import type { ChatMessage, ChatRole } from "@frame/common";
 import { planFromAgent } from "../agent/agent.js";
 
@@ -19,25 +19,21 @@ export const agentRoutes: FastifyPluginAsync = async (app) => {
     const projectId = (req.params as { id: string }).id;
     const { messages } = body.parse(req.body);
 
-    const userMsg: ChatMessage = {
+    await store.createMessage({
       id: uuid(),
       projectId,
       role: "user",
       content: messages[messages.length - 1]!.content,
-      createdAt: new Date().toISOString(),
-    };
-    db.chat.set(userMsg.id, userMsg);
+    });
 
     const replyText = await planFromAgent(projectId, messages as ChatMessage[]);
 
-    const assistantMsg: ChatMessage = {
+    const assistantMsg = await store.createMessage({
       id: uuid(),
       projectId,
       role: "assistant" as ChatRole,
       content: replyText,
-      createdAt: new Date().toISOString(),
-    };
-    db.chat.set(assistantMsg.id, assistantMsg);
+    });
 
     return reply.send({ message: assistantMsg });
   });

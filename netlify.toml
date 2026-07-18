@@ -1,5 +1,5 @@
 [build]
-  command = "pnpm install && pnpm --filter @frame/common run build && pnpm --filter @frame/web run build"
+  command = "pnpm install && pnpm --filter @frame/common run build && pnpm --filter @frame/backend run build && pnpm --filter @frame/web run build"
   publish = "packages/frame-web/.next"
 
 [build.environment]
@@ -7,7 +7,7 @@
   NEXT_PUBLIC_API_URL = "/api"
 
 [functions]
-  directory = "netlify/functions"
+  directory = "packages/frame-backend/netlify/functions"
   node_bundler = "esbuild"
   included_files = ["packages/frame-backend/dist/**", "packages/frame-common/dist/**"]
 
@@ -17,9 +17,4 @@
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
-  status = 200
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
   status = 200

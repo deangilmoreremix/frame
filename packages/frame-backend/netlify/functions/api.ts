@@ -1,9 +1,8 @@
-import { builder } from "@netlify/functions";
-import { buildServer } from "../../packages/frame-backend/src/server.js";
+import { buildServer } from "../../dist/server.js";
 
 const serverPromise = buildServer().then((app) => app.ready());
 
-const proxy = async (event: any, context: any) => {
+export const handler = async (event: any, context: any) => {
   const app = await serverPromise;
   const url = new URL(event.path, "http://localhost");
   const body =
@@ -12,12 +11,6 @@ const proxy = async (event: any, context: any) => {
         ? Buffer.from(event.body, "base64")
         : Buffer.from(event.body)
       : undefined;
-
-  const request = new Request(url.toString(), {
-    method: event.httpMethod,
-    headers: { ...(event.headers ?? {}), host: "localhost" },
-    body: event.httpMethod === "GET" || event.httpMethod === "HEAD" ? undefined : body,
-  });
 
   const response = await app.inject({
     method: event.httpMethod,
@@ -33,5 +26,3 @@ const proxy = async (event: any, context: any) => {
     isBase64Encoded: true,
   };
 };
-
-export const handler = builder(proxy);

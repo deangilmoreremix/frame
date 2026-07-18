@@ -25,7 +25,11 @@ export async function buildServer() {
 }
 
 const port = Number(process.env.PORT ?? 4000);
-if (process.env.NODE_ENV !== "test") {
+// Auto-start the HTTP server only when run as a standalone process (local dev / container).
+// In a serverless context (Netlify Function) the listener must NOT start; the function
+// imports buildServer() and serves via app.inject instead.
+const isServerless = process.env.NETLIFY === "true" || process.env.AWS_LAMBDA_FUNCTION_NAME != null;
+if (process.env.NODE_ENV !== "test" && !isServerless) {
   buildServer()
     .then((app) => app.listen({ port, host: "0.0.0.0" }))
     .catch((err) => {

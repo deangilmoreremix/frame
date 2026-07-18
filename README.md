@@ -29,33 +29,49 @@ Tables are namespaced `frame_*` to avoid collisions with other apps in the same 
 `frame_projects`, `frame_assets`, `frame_tracks`, `frame_clips`, `frame_render_jobs`,
 `frame_chat_messages`. Uploaded media is streamed to the `frame-media` Storage bucket.
 
+### Shared-DB isolation
+
+This Supabase project is **shared with other applications**, so isolation is enforced at
+two layers:
+
+1. **Naming isolation** — all our tables use a `frame_` prefix in the `public` schema.
+   (The REST API only exposes `public`; a dedicated `frame` schema would require adding it
+   in the dashboard's API settings, so we deliberately stay in `public`.)
+2. **Row Level Security** — RLS is enabled on every `frame_*` table with a service-role
+   policy, so the tables are protected from anon/authenticated access and from the other
+   apps. Our backend uses the service role key, which bypasses RLS, so the API is unaffected.
+
+Storage objects are isolated by the `frame/` object prefix (`assets/<projectId>/...`) in a
+private `frame-media` bucket.
+
 ### Supabase CLI
 
 The project uses the **Supabase CLI** (installed as a dev dependency) for schema migrations:
 
 - `supabase/config.toml` — project config (`project_id = bzxohkrxcwodllketcpz`).
-- `supabase/migrations/` — versioned SQL migrations. `20240718000000_init.sql` creates the
-  `frame_*` tables/indexes (idempotent via `if not exists`, safe to re-run).
+- `supabase/migrations/` — versioned SQL migrations:
+  - `20240718000000_init.sql` — creates the `frame_*` tables/indexes.
+  - `20240718020000_frame_tables_rls.sql` — (re)creates tables if missing + enables RLS/policies.
+  - `20240718030000_frame_storage_policies.sql` — ensures the private `frame-media` bucket.
 
 Commands (run via `pnpm`):
 - `pnpm run db:push` — apply local migrations to the remote DB
   (`supabase db push --db-url "$SUPABASE_DB_URL"`). Used automatically in the Netlify build.
 - `pnpm run db:diff -f <name>` — generate a new migration from local DB changes.
-- `supabase init` / `supabase link --project-ref bzxohkrxcwodllketcpz` — for local dev / linking.
+- `supabase link --project-ref bzxohkrxcwodllketcpz` — for linking (needs a personal access token).
 
 > This Supabase project is shared with another app, so its pre-existing migrations were
 > adopted as empty placeholder files (`*_adopted.sql`) to reconcile the migration history.
 
 Setup:
 1. `pnpm install` (installs the Supabase CLI).
-2. Create the Storage bucket `frame-media` (private).
-3. Set env (see `packages/frame-backend/.env.example`): `SUPABASE_URL`,
+2. Set env (see `packages/frame-backend/.env.example`): `SUPABASE_URL`,
    `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_BUCKET`, and `SUPABASE_DB_URL` (Postgres
    connection string) for `db:push`.
-4. `pnpm run db:push` to apply the schema (or let Netlify do it on deploy).
+3. `pnpm run db:push` to apply the schema (or let Netlify do it on deploy).
 
-> The service role key bypasses RLS. Before exposing a browser client, enable RLS and
-> add policies scoped to `auth.uid()`.
+> The service role key bypasses RLS. When adding Supabase Auth, tighten the `frame_*` policies
+> to scope by `auth.uid()` and add storage policies for the `frame/` prefix.
 
 ## Prerequisites
 

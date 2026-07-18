@@ -1,5 +1,5 @@
 [build]
-  command = "pnpm install && pnpm --filter @frame/common run build && pnpm --filter @frame/backend run build && pnpm --filter @frame/web run build"
+  command = "pnpm install && pnpm --filter @frame/common run build && pnpm --filter @frame/backend run build && pnpm --filter @frame/web run build && pnpm run db:push"
   publish = "packages/frame-web/.next"
 
 [build.environment]

@@ -1,0 +1,2 @@
+-- Placeholder migration adopted from the pre-existing shared Supabase project.
+-- Objects for this version already exist on the remote; intentionally empty.

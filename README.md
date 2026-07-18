@@ -101,21 +101,28 @@ pnpm --filter @frame/web run build        # production build of web
 Both the web app and the API run on Netlify from this repo:
 
 - **Web:** built by `@netlify/plugin-nextjs` (Next.js output in `packages/frame-web/.next`).
-- **API:** a Netlify Function at `netlify/functions/api.ts` wraps the Fastify app via
-  `app.inject`, so `/api/*` is served same-origin (no separate host, no CORS needed).
+- **API:** a Netlify Function at `packages/frame-backend/netlify/functions/api.ts` wraps the
+  Fastify app via `app.inject`, so `/api/*` is served same-origin (no separate host, no CORS).
 
-Deploy steps:
-1. Connect the repo to Netlify and set the build command to `pnpm run build:netlify`
-   (builds `@frame/common` + `@frame/backend` + `@frame/web`).
-2. Add the function env vars (see `packages/frame-backend/.env.example`):
-   `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_BUCKET`,
-   and optionally `FRAME_AI_PROVIDER` / `FRAME_AI_API_KEY`.
-3. `NEXT_PUBLIC_API_URL` is set to `/api` in `netlify.toml`, so the browser calls the
-   same-origin function.
-4. `netlify.toml` redirects `/api/*` → `/.netlify/functions/api/:splat`.
+### Netlify CLI
 
-> The function bundles the backend + `@frame/common` to `dist` (compiled by
-> `build:netlify`) and includes them via `functions.included_files`.
+The **Netlify CLI** is installed as a dev dependency (`netlify-cli`). Useful scripts:
+- `pnpm run netlify:login` — authenticate with Netlify.
+- `pnpm run netlify:dev` — run the site locally (web + function via `netlify dev`).
+- `pnpm run netlify:build` — run the production build locally.
+- `pnpm run netlify:deploy` — deploy to production (`netlify deploy --prod`).
+
+### Deploy steps (dashboard or CLI)
+1. Set env vars (see `packages/frame-backend/.env.example`): `SUPABASE_URL`,
+   `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_BUCKET`, `SUPABASE_DB_URL`, and optionally
+   `FRAME_AI_PROVIDER` / `FRAME_AI_API_KEY`.
+2. `NEXT_PUBLIC_API_URL` is `/api` and `NODE_VERSION` is `18` in `netlify.toml`.
+3. `netlify.toml` redirects `/api/*` → `/.netlify/functions/api/:splat` and runs the build
+   command (which builds all packages and runs `pnpm run db:push` to apply migrations).
+4. Deploy via the dashboard (connect repo) or `pnpm run netlify:deploy` after `netlify:login`.
+
+> The function bundles the backend + `@frame/common` to `dist` (compiled by the build command)
+> and includes them via `functions.included_files`.
 
 Alternative (Vercel): `vercel.json` still exists and deploys the web to Vercel,
 rewriting `/api/*` to a separately hosted backend.
